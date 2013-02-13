@@ -1,0 +1,14 @@
+name = "Album photos"
+description = Picture Management Module
+core = 7.x
+package = album photos
+dependencies[] = file
+dependencies[] = image
+configure = admin/config/media/photos
+
+; Information added by drupal.org packaging script on 2013-01-11
+version = "7.x-3.x-dev"
+core = "7.x"
+project = "photos"
+datestamp = "1357869513"
+

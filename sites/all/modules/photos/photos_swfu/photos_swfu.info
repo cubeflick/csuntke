@@ -1,0 +1,13 @@
+name = "Photos SWFUpload"
+description = SWFUpload
+package = album photos
+dependencies[] = photos
+dependencies[] = libraries (>=2.x)
+core = 7.x
+
+; Information added by drupal.org packaging script on 2013-01-11
+version = "7.x-3.x-dev"
+core = "7.x"
+project = "photos"
+datestamp = "1357869513"
+

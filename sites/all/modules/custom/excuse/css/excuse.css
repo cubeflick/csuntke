@@ -1,0 +1,57 @@
+.block-excuse .item-list ul{
+	margin:0;
+	padding:0
+}
+
+.block-excuse .item-list ul li{
+	list-style:none;
+	border:1px #000 solid;
+	margin:10px 0;
+	border-radius: 10px 10px 10px 10px;
+	padding:10px;
+	background:#FE817F;
+}
+
+.block-excuse .item-list .submitted-by{
+	font-weight: bold;
+}
+
+.block-excuse .item-list .excuse-description{
+	margin:10px 0;
+}
+
+.block-excuse .item-list .download-support-document{
+	float:right;
+	background:#fff;
+	display:inline-block;
+	padding:3px 5px 3px 5px;
+	border-radius: 5px 5px 5px 5px;
+	border:1px #fff solid;
+}
+
+.block-excuse .item-list .download-support-document a{
+	text-decoration: none;
+	color:#000;
+}
+
+.block-excuse .item-list .approval-status{
+	clear:right;
+}
+
+/*
+ * Form css
+ */
+
+.approval-status .form-item-status{
+	display:inline-block;
+	margin-left:20px;
+}
+
+.approval-status .box{
+	color:red;
+	display:inline-block;
+	margin-left:10px;
+}
+.delete-excuse{
+	text-align:right;
+}

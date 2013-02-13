@@ -1,0 +1,13 @@
+album photos for drupal-7.x
+
+2012/9/08
+1. Added confirm_form to delete image.
+2. Removed SWFUpload MIT files and added support for Libraries API 2.x (photos_swfu).
+3. Removed Jeditable MIT files and added support for Libraries API 2.x.
+4. Added token to Jeditable fields.
+
+2012/8/23
+1. Renamed database tables from x_* to photos_*.
+2. Renamed variables and removed unused variables.
+3. Integrate with core image module to use image styles.
+4. Removed thickbox and added support for colorbox.

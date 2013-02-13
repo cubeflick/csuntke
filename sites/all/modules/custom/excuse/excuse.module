@@ -1,0 +1,458 @@
+<?php
+/*
+ * Excuse Form to gather the excuses
+ */
+function excuse_init(){
+	drupal_add_js(drupal_get_path('module', 'excuse')."/js/excuse.js",array('type' => 'file', 'scope' => 'footer'));
+	drupal_add_css(drupal_get_path('module', 'excuse')."/css/excuse.css");
+}
+
+function excuse_form(){
+	
+	$form['#attributes'] = array(
+			'class' => 'submit-excuse',
+			'name'=>'submit-excuse',
+			'id'=>'submit-excuse'
+	);
+
+	$form['excuse-text'] = array(
+			'#type' => 'textarea',
+			'#id' => 'excuse-text',
+			'#lable'=>'Excuse',
+			'#required' => TRUE
+	
+	);
+	$form['suportingdocument'] = array(
+			'#title' => 'Suport Document',
+			'#type' => 'file',
+	);
+	
+	$form['submit'] = array(
+			'#type' => 'submit',
+			'#value' => t('Submit Excuse')
+	);
+	
+	return $form;
+}
+/*
+ * Validation handler of the excuse form
+ */
+function excuse_form_validate($form, &$form_state) {
+
+	
+	$file = file_save_upload('suportingdocument', array(
+	   'file_validate_extensions' => array('png gif jpg jpeg txt doc'), // Validate extensions.
+	));
+	
+	if ($file) {
+		if ($file = file_move($file, 'public://')) {
+			// Save the file for use in the submit handler.
+			$form_state['storage']['suportingdocument'] = $file;
+		}
+		else {
+			form_set_error('suportingdocument', t('Failed to write the uploaded file the site\'s file folder.'));
+			return ;
+		}
+	}
+
+}
+
+/*
+ * Submit handler of the excuse form
+ */
+
+function excuse_form_submit($form, &$form_state) {
+
+	global $user;
+	/*
+	 * Collect the values to submit in entity field
+	 */
+ 	$val = $form_state['values'];
+	
+ 	$file_uri = '';
+ 	/*
+ 	 * existing event ID 
+ 	 */
+ 	$eventNodeId  = arg(1);
+ 	
+	if(key_exists('storage',$form_state))
+	{	
+		$file = $form_state['storage']['suportingdocument'];
+		// We are done with the file, remove it from storage.
+		unset($form_state['storage']['suportingdocument']);
+		// Make the storage of the file permanent
+		$file->status = FILE_STATUS_PERMANENT;
+		// Save file status.
+		file_save($file);
+		// Set a response to the user.
+		$file_uri = $file->uri;
+	}
+	
+	$nid = db_insert('excuse_excuses')
+	->fields(array('excuse_text', 'uid', 'event_id','doc_uri','status','created'))
+	->values(array(
+			'excuse_text' => $val['excuse-text'],
+			'uid' => $user->uid,
+			'event_id' => $eventNodeId,
+			'doc_uri' => $file_uri,
+			'status' => 0,
+			'created' => REQUEST_TIME,
+	))
+	->execute();
+
+	drupal_set_message("Excuse submitted successfully");
+}
+
+/**
+ * Ajax form to approve/deny the status of excuse
+ *
+ * On submit, the markup in the #markup element is updated.
+ */
+function approve_deny_excuse($form, &$form_state,$excuseID,$status) {
+	
+	$arrayStatus = array('0'=>'Pending','1'=>'Approved','2'=>'Denied');
+	
+	$form['approval_status'] = array(
+			'#type' => 'markup',
+			'#prefix' => '<span id="status">',
+			'#suffix' => '</span>',
+			'#markup' => 'Approval Status:',
+	);
+
+	$form['status'] = array(
+			'#type' => 'select',
+			'#options' => $arrayStatus,
+			'#default_value'=>$status
+			
+	);
+	
+	$form['excuse_id'] = array(
+			'#type' => 'hidden',
+			'#default_value'=>$excuseID
+	
+	);
+	$form['submit'] = array(
+			'#type' => 'submit',
+			'#ajax' => array(
+					'callback' => 'approve_deny_excuse_callback',
+					'wrapper' => 'box_'.$excuseID,
+					'name' => 'submit',
+			),
+			'#value' => t('Submit'),
+	);
+	
+	$form['box_'.$excuseID] = array(
+			'#type' => 'markup',
+			'#prefix' => '<div class="box" id="box_'.$excuseID.'">',
+			'#suffix' => '</div>',
+	);
+	
+
+	return $form;
+}
+
+function approve_deny_excuse_callback($form, $form_state) {
+	/*
+	 * update the status;
+	 */
+	$num_updated = db_update('excuse_excuses') // Table name no longer needs {}
+	->fields(array(
+			'status' => $form_state['values']['status'],
+	))
+	->condition('excuse_id', $form_state['values']['excuse_id'], '=')
+	->execute();
+	
+	$element = $form['box_'.$form_state['values']['excuse_id']];
+	$element['#markup'] = "Status updated successfully";
+	
+	return $element;
+}
+
+/**
+ * Ajax form to approve/deny the status of excuse
+ *
+ * On submit, the markup in the #markup element is updated.
+ */
+function delete_excuse($form, &$form_state,$excuseID) {
+
+
+	$form['excuse_id'] = array(
+			'#type' => 'hidden',
+			'#default_value'=>$excuseID
+
+	);
+	$form['submit'] = array(
+			'#type' => 'submit',
+			'#value' => t('Delete'),
+	);
+
+	return $form;
+}
+
+function delete_excuse_submit($form, $form_state) {
+	/*
+	 * update the status;
+	*/
+	$path = current_path();
+	$path_alias = drupal_lookup_path('alias',$path);
+	
+	$num_updated = db_delete('excuse_excuses') // Table name no longer needs {}
+	->condition('excuse_id', $form_state['values']['excuse_id'], '=')
+	->execute();
+	drupal_set_message("Excuse deleted sucessfully");
+	drupal_goto($path_alias);
+	
+}
+
+
+/*
+ * function to list own excues
+ */
+function own_excuse_list(){
+	
+	global $user;
+	
+	$eventID = arg(1);
+	$uid = $user->uid;
+	
+	$arrayStatus = array('0'=>'Pending','1'=>'Approved','2'=>'Denied');
+	
+	$excuseLists = db_query('SELECT e.excuse_id, e.excuse_text, e.status, e.doc_uri, e.created, e.uid
+FROM {excuse_excuses} e WHERE e.uid = :uid and e.event_id = :event_id', 
+			array(
+					':uid' => $uid,
+					':event_id' => $eventID
+					
+			)
+	);
+	
+	$items =  array();
+	$tempList = array();
+	
+	foreach ($excuseLists as $excuse) {
+		$excuseByUser = user_load($excuse->uid);
+		//dpr($excuseByUser);
+		$strExcuse = "<div class='excuse-detail'>";
+			$strExcuse .= "<div class='submitted-by'>Submitted by ";
+				$strExcuse .= $excuseByUser->field_first_name['und']['0']['value'] . " ";
+				$strExcuse .= $excuseByUser->field_last_name['und']['0']['value'] . " on ";
+				$strExcuse .= format_date($excuse->created,'medium');
+				$strExcuse .="</div>";
+		$strExcuse .= "<div class='excuse-description'>".$excuse->excuse_text."</div>";
+				
+			if($excuse->doc_uri != "")
+			{	
+				$strExcuse .= "<div class='download-support-document'>";
+					$strExcuse .= "<a href='".file_create_url($excuse->doc_uri)."'>Download Attachment</a>";
+				$strExcuse .="</div>";
+			}	
+			
+			$strExcuse .= "<div class='approval-status'>Approval Status: <span>";
+			$strExcuse .= $arrayStatus[$excuse->status];
+			$strExcuse .="</span> <span class='delete-excuse'>".drupal_render(drupal_get_form('delete_excuse',$excuse->excuse_id))."</span></div>";
+				
+		$strExcuse .= "</div>";
+		$tempList[] = $strExcuse;
+	}
+	$items['items'] = $tempList;
+	
+	return theme('item_list', $items,'','',array('class'=>'excuse-list-wrapper'));
+}
+
+/*
+ * A specific Role (eboard) member can 
+ * see all excuses without any action on them.
+*/
+function excuse_list_all(){
+
+	global $user;
+
+	$eventID = arg(1);
+	$uid = $user->uid;
+
+	$arrayStatus = array('0'=>'Pending','1'=>'Approved','2'=>'Denied');
+
+	$excuseLists = db_query('SELECT e.excuse_text, e.status, e.doc_uri, e.created, e.uid
+FROM {excuse_excuses} e WHERE  e.event_id = :event_id',
+			array(
+					':event_id' => $eventID
+						
+			)
+	);
+
+	$items =  array();
+	$tempList = array();
+
+	foreach ($excuseLists as $excuse) {
+		$excuseByUser = user_load($excuse->uid);
+		//dpr($excuseByUser);
+		$strExcuse = "<div class='excuse-detail'>";
+		$strExcuse .= "<div class='submitted-by'>Submitted by ";
+		$strExcuse .= $excuseByUser->field_first_name['und']['0']['value'] . " ";
+		$strExcuse .= $excuseByUser->field_last_name['und']['0']['value'] . " on ";
+		$strExcuse .= format_date($excuse->created,'medium');
+		$strExcuse .="</div>";
+		$strExcuse .= "<div class='excuse-description'>".$excuse->excuse_text."</div>";
+
+		if($excuse->doc_uri != "")
+		{
+			$strExcuse .= "<div class='download-support-document'>";
+			$strExcuse .= "<a href='".file_create_url($excuse->doc_uri)."'>Download Attachment</a>";
+			$strExcuse .="</div>";
+		}
+			
+		$strExcuse .= "<div class='approval-status'>Approval Status: <span>";
+		$strExcuse .= $arrayStatus[$excuse->status];
+		$strExcuse .="</span></div>";
+
+		$strExcuse .= "</div>";
+		$tempList[] = $strExcuse;
+	}
+	$items['items'] = $tempList;
+
+	return theme('item_list', $items,'','',array('class'=>'excuse-list-wrapper'));
+}
+
+
+/*
+ * function the list of all excuses for a event. 
+ * this block will be only shown to the specific roles who
+ * can approve or deny the excuses
+*/
+function excuse_list(){
+
+	global $user;
+	
+	$roles = $user->roles;	 
+
+	$eventID = arg(1);
+	$uid = $user->uid;
+
+	$arrayStatus = array('0'=>'Pending','1'=>'Approved','2'=>'Denied');
+
+	$excuseLists = db_query('SELECT e.excuse_id,e.excuse_text, e.status, e.doc_uri, e.created, e.uid
+FROM {excuse_excuses} e WHERE e.event_id = :event_id',
+			array(
+					':event_id' => $eventID
+						
+			)
+	);
+
+	$items =  array();
+	$tempList = array();
+
+	foreach ($excuseLists as $excuse) {
+
+		$excuseByUser = user_load($excuse->uid);
+		//dpr($excuseByUser);
+		$strExcuse = "<div class='excuse-detail'>";
+		$strExcuse .= "<div class='submitted-by'>Submitted by ";
+		$strExcuse .= $excuseByUser->field_first_name['und']['0']['value'] . " ";
+		$strExcuse .= $excuseByUser->field_last_name['und']['0']['value'] . " on ";
+		$strExcuse .= format_date($excuse->created,'medium');
+		$strExcuse .="</div>";
+		$strExcuse .= "<div class='excuse-description'>".$excuse->excuse_text."</div>";
+
+		if($excuse->doc_uri != "")
+		{
+			$strExcuse .= "<div class='download-support-document'>";
+			$strExcuse .= "<a href='".file_create_url($excuse->doc_uri)."'>Download Attachment</a>";
+			$strExcuse .="</div>";
+		}
+			
+		
+		
+		if((in_array('President', $roles)) || (in_array('Pyloretes', $roles)))
+		{
+			$strExcuse .= "<div class='approval-status'>";
+			$strExcuse .= drupal_render(drupal_get_form('approve_deny_excuse',$excuse->excuse_id,$excuse->status));
+			$strExcuse .="<span class='delete-excuse'>".drupal_render(drupal_get_form('delete_excuse',$excuse->excuse_id))."</span></div>";
+		}
+		else 
+		{
+			$strExcuse .= "<div class='approval-status'>Approval Status: <span>";
+			$strExcuse .= $arrayStatus[$excuse->status];
+			$strExcuse .="</span></div>";
+		}			
+		
+		
+
+		$strExcuse .= "</div>";
+		$tempList[] = $strExcuse;
+	}
+	$items['items'] = $tempList;
+
+	return theme('item_list', $items,'','',array('class'=>'excuse-list-wrapper'));
+}
+
+
+/*
+ * Block to contain the excuse form
+ */
+function excuse_block_info() {
+	$blocks = array();
+	
+	/*
+	 * Block to contain the excuse list
+	 */
+	$blocks['submit_excuse'] = array(
+			'info' => t('Submit Excuse'),
+			'region' => 'content',
+			'status' => TRUE,
+			'cache' => DRUPAL_NO_CACHE,
+			'visibility' => BLOCK_VISIBILITY_LISTED,
+			'pages' => "event/*",
+	);
+	/*
+	 * Show list of logged in member
+	 */	
+	$blocks['own_excuses'] = array(
+			'info' => t('Own Excuses'),
+			'region' => 'content',
+			'status' => TRUE,
+			'cache' => DRUPAL_NO_CACHE,
+			'visibility' => BLOCK_VISIBILITY_LISTED,
+			'pages' => "event/*",
+	);	
+	
+	/*
+	 * For roles who has the rights to approve and deny of excuses
+	 */
+	$blocks['excuse_list'] = array(
+			'info' => t('Excuses List'),
+			'region' => 'content',
+			'status' => TRUE,
+			'cache' => DRUPAL_NO_CACHE,
+			'visibility' => BLOCK_VISIBILITY_LISTED,
+			'pages' => "event/*",
+	);
+	
+	return $blocks;
+}
+
+function excuse_block_view($delta = '') {
+	// The $delta parameter tells us which block is being requested.
+	$block = array();
+	switch ($delta) {
+		case 'submit_excuse':
+			// Create your block content here
+			$event = node_load(arg(1));
+			$isMand = $event->field_mandatory['und']['0']['value'];
+			$block['subject'] = ($isMand == 'Yes') ? t('Submit an Excuse') : " ";
+			$block['content'] = ($isMand == 'Yes') ? drupal_get_form('excuse_form') : " ";;
+
+			break;
+		case 'own_excuses':
+			// Create your block content here
+			$block['subject'] = t('');
+			$block['content'] = own_excuse_list();
+			break;
+		case 'excuse_list':
+			// Create your block content here
+			$block['subject'] = t('');
+			$block['content'] = excuse_list();
+			break;
+	}
+
+	return $block;
+}
