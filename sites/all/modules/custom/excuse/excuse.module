@@ -7,6 +7,23 @@ function excuse_init(){
 	drupal_add_css(drupal_get_path('module', 'excuse')."/css/excuse.css");
 }
 
+/**
+ * Implements hook_menu().
+ */
+function excuse_menu() {
+	$items['changeshipping/%'] = array(
+			'title' => 'Change Shipping',
+			'page callback' => 'changeShipping',
+			'page arguments' => array(1),
+	  		'delivery callback' => 'ajax_deliver',
+			'access callback' => True,
+			'type' => MENU_CALLBACK,
+	);
+
+	return $items;
+}
+
+
 function excuse_form(){
 	
 	$form['#attributes'] = array(
@@ -456,3 +473,25 @@ function excuse_block_view($delta = '') {
 
 	return $block;
 }
+
+
+function changeShipping($sorority)
+{
+	
+	switch ($sorority) {
+	    case "tke":
+	        	//variable_set('uc_pane_quotes_enabled',0);
+	        break;
+	    case "sorority":
+	        	//variable_set('uc_pane_quotes_enabled',0);
+	        break;
+	    case "ship":
+	        	//variable_set('uc_pane_quotes_enabled',1);
+	        break;
+	    default:
+	        	
+	        
+	}
+	module_invoke_all(exit);
+}
+

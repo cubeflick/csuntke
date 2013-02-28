@@ -64,6 +64,8 @@ function marinelli_preprocess_page(&$vars) {
     array('type' => 'setting')
   );
 
+  drupal_add_js('/misc/jquery.validate.min.js');
+  
   // LOGO SECTION  ==============================================================
   // site logo
   $vars['imagelogo'] = theme('image', array(
